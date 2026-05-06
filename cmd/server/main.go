@@ -55,7 +55,7 @@ func main() {
 
 	// HTTP routes
 	mux := http.NewServeMux()
-	handler := api.NewHandler(priceStore)
+	handler := api.NewHandler(priceStore, 2*cfg.FetchInterval)
 	handler.RegisterRoutes(mux)
 	api.RegisterSSE(mux, broker)
 

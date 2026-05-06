@@ -12,7 +12,7 @@ import (
 
 func newTestHandler() (*Handler, *store.Store) {
 	s := store.New(1440)
-	h := NewHandler(s)
+	h := NewHandler(s, 2*time.Minute)
 	return h, s
 }
 
@@ -100,6 +100,31 @@ func TestGetPrice_Found(t *testing.T) {
 	json.NewDecoder(rec.Body).Decode(&p)
 	if p.TokenID != "BTC" || p.Price != 94500 {
 		t.Errorf("got %+v, want BTC@94500", p)
+	}
+	if p.Stale {
+		t.Error("fresh price should not be stale")
+	}
+}
+
+func TestGetPrice_Stale(t *testing.T) {
+	h, s := newTestHandler()
+	mux := newTestMux(h)
+
+	// Set a price with a timestamp older than the 2-minute stale threshold
+	s.SetLatest("BTC", store.Price{TokenID: "BTC", Price: 94500, Timestamp: time.Now().Add(-3 * time.Minute)})
+
+	req := httptest.NewRequest("GET", "/prices/BTC", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var p store.Price
+	json.NewDecoder(rec.Body).Decode(&p)
+	if !p.Stale {
+		t.Error("old price should be marked as stale")
 	}
 }
 

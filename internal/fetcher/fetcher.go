@@ -73,9 +73,41 @@ func (f *Fetcher) Run(ctx context.Context) {
 			slog.Info("fetcher stopped")
 			return
 		case <-ticker.C:
-			f.fetchAll(ctx)
+			f.fetchWithRetry(ctx)
 		}
 	}
+}
+
+// fetchWithRetry attempts a fetch cycle and retries up to 2 times if no
+// non-stablecoin prices were fetched (indicates API failure).
+func (f *Fetcher) fetchWithRetry(ctx context.Context) {
+	const maxRetries = 2
+	const retryDelay = 5 * time.Second
+
+	// Count how many non-stablecoin tokens we expect
+	expectedFeeds := 0
+	for _, token := range f.tokens {
+		if !f.stableCoins[token.ID] {
+			expectedFeeds++
+		}
+	}
+
+	for attempt := 1; attempt <= maxRetries+1; attempt++ {
+		if ctx.Err() != nil {
+			return
+		}
+		if attempt > 1 {
+			slog.Warn("fetch cycle got no market prices, retrying", "attempt", attempt)
+			time.Sleep(retryDelay)
+		}
+		n := f.fetchAll(ctx)
+		// Success if we got at least some non-stablecoin prices,
+		// or if there are no non-stablecoin feeds configured
+		if n > len(f.stableCoins) || expectedFeeds == 0 {
+			return
+		}
+	}
+	slog.Error("fetch cycle failed after retries, will try again next interval")
 }
 
 func (f *Fetcher) fetchAll(ctx context.Context) int {

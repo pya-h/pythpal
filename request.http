@@ -7,7 +7,7 @@ GET {{host}}/health
 GET {{host}}/prices
 
 ### Get Single Token Price
-GET {{host}}/prices/BTC
+GET {{host}}/prices/BNB
 
 ### Get Single Token Price (not found)
 GET {{host}}/prices/DOGE

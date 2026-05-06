@@ -11,11 +11,12 @@ import (
 )
 
 type Handler struct {
-	store *store.Store
+	store          *store.Store
+	staleThreshold time.Duration
 }
 
-func NewHandler(s *store.Store) *Handler {
-	return &Handler{store: s}
+func NewHandler(s *store.Store, staleThreshold time.Duration) *Handler {
+	return &Handler{store: s, staleThreshold: staleThreshold}
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
@@ -31,8 +32,10 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleGetAllPrices(w http.ResponseWriter, r *http.Request) {
 	all := h.store.GetAllLatest()
+	now := time.Now()
 	prices := make([]store.Price, 0, len(all))
 	for _, p := range all {
+		p.Stale = now.Sub(p.Timestamp) > h.staleThreshold
 		prices = append(prices, p)
 	}
 	writeJSON(w, http.StatusOK, prices)
@@ -45,6 +48,7 @@ func (h *Handler) handleGetPrice(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "token not found"})
 		return
 	}
+	p.Stale = time.Since(p.Timestamp) > h.staleThreshold
 	writeJSON(w, http.StatusOK, p)
 }
 

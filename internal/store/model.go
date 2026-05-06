@@ -8,4 +8,5 @@ type Price struct {
 	EMAPrice  float64   `json:"ema_price"`
 	Conf      float64   `json:"confidence"`
 	Timestamp time.Time `json:"timestamp"`
+	Stale     bool      `json:"stale,omitempty"`
 }

@@ -82,7 +82,7 @@ func startTestServer(t *testing.T) (string, func()) {
 	pythClient := pyth.NewClient(cfg.HermesBaseURL)
 
 	mux := http.NewServeMux()
-	handler := api.NewHandler(priceStore)
+	handler := api.NewHandler(priceStore, 2*time.Minute)
 	handler.RegisterRoutes(mux)
 	api.RegisterSSE(mux, broker)
 
