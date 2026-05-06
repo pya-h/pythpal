@@ -40,9 +40,13 @@ type PriceFeedAttrs struct {
 }
 
 // NormalizeName returns a clean, URL-safe token ID.
-// e.g. "Crypto.BTC/USD" -> "BTC-USD", using attributes when available.
+// USD pairs use just the base: "BTC". Non-USD pairs use "BTC-EUR".
+// Falls back to parsing the symbol field if attributes are missing.
 func (f *PriceFeedInfo) NormalizeName() string {
 	if f.Attributes.Base != "" && f.Attributes.QuoteCurrency != "" {
+		if f.Attributes.QuoteCurrency == "USD" {
+			return f.Attributes.Base
+		}
 		return f.Attributes.Base + "-" + f.Attributes.QuoteCurrency
 	}
 	s := f.Attributes.Symbol

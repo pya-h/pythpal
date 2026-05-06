@@ -36,9 +36,33 @@ func New(
 	}
 }
 
-// Run starts the fetch loop. It blocks until ctx is cancelled.
-func (f *Fetcher) Run(ctx context.Context) {
+// FetchOnce runs a single fetch cycle. Used for initial data population.
+func (f *Fetcher) FetchOnce(ctx context.Context) {
 	f.fetchAll(ctx)
+}
+
+// Run starts the fetch loop. It blocks until ctx is cancelled.
+// Retries the initial fetch up to 3 times to ensure data is available on startup,
+// then continues on a regular ticker interval.
+func (f *Fetcher) Run(ctx context.Context) {
+	const maxRetries = 3
+	const retryDelay = 3 * time.Second
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		if ctx.Err() != nil {
+			return
+		}
+		if attempt > 1 {
+			slog.Info("retrying initial price fetch", "attempt", attempt)
+			time.Sleep(retryDelay)
+		}
+		n := f.fetchAll(ctx)
+		if n > 0 {
+			slog.Info("initial price fetch complete", "prices", n)
+			break
+		}
+		slog.Warn("initial fetch returned no prices", "attempt", attempt)
+	}
 
 	ticker := time.NewTicker(f.interval)
 	defer ticker.Stop()
@@ -54,7 +78,9 @@ func (f *Fetcher) Run(ctx context.Context) {
 	}
 }
 
-func (f *Fetcher) fetchAll(ctx context.Context) {
+func (f *Fetcher) fetchAll(ctx context.Context) int {
+	stored := 0
+
 	// Handle stablecoins (no API call needed)
 	now := time.Now()
 	for _, token := range f.tokens {
@@ -70,6 +96,7 @@ func (f *Fetcher) fetchAll(ctx context.Context) {
 		}
 		f.store.SetLatest(token.ID, p)
 		f.broker.Publish(p)
+		stored++
 	}
 
 	// Collect non-stablecoin feed IDs for batch fetch
@@ -84,17 +111,17 @@ func (f *Fetcher) fetchAll(ctx context.Context) {
 	}
 
 	if len(feedIDs) == 0 {
-		return
+		return stored
 	}
 
 	if ctx.Err() != nil {
-		return
+		return stored
 	}
 
 	results, err := f.client.FetchLatestPrices(ctx, feedIDs)
 	if err != nil {
 		slog.Error("batch fetch failed", "error", err)
-		return
+		return stored
 	}
 
 	for _, feed := range results {
@@ -111,6 +138,7 @@ func (f *Fetcher) fetchAll(ctx context.Context) {
 
 		f.store.SetLatest(tokenID, p)
 		f.broker.Publish(p)
+		stored++
 
 		slog.Debug("price updated",
 			"token", tokenID,
@@ -118,4 +146,6 @@ func (f *Fetcher) fetchAll(ctx context.Context) {
 			"ema", p.EMAPrice,
 		)
 	}
+
+	return stored
 }

@@ -67,14 +67,7 @@ func main() {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	// Start fetcher
-	fetchCtx, fetchCancel := context.WithCancel(context.Background())
-	defer fetchCancel()
-
-	f := fetcher.New(pythClient, priceStore, broker, cfg)
-	go f.Run(fetchCtx)
-
-	// Start HTTP server
+	// Start HTTP server first so health checks work immediately
 	go func() {
 		slog.Info("http server listening", "addr", srv.Addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -82,6 +75,13 @@ func main() {
 			os.Exit(1)
 		}
 	}()
+
+	// Start fetcher — initial fetch then ticker loop
+	fetchCtx, fetchCancel := context.WithCancel(context.Background())
+	defer fetchCancel()
+
+	f := fetcher.New(pythClient, priceStore, broker, cfg)
+	go f.Run(fetchCtx)
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)

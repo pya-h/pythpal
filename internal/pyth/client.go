@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -64,17 +65,26 @@ func (c *Client) FetchLatestPrices(ctx context.Context, feedIDs []string) ([]Par
 	const chunkSize = 100
 
 	var all []ParsedPriceFeed
+	totalChunks := (len(feedIDs) + chunkSize - 1) / chunkSize
+
 	for i := 0; i < len(feedIDs); i += chunkSize {
+		if ctx.Err() != nil {
+			return all, ctx.Err()
+		}
+
 		end := i + chunkSize
 		if end > len(feedIDs) {
 			end = len(feedIDs)
 		}
 
+		chunkNum := i/chunkSize + 1
 		chunk, err := c.fetchBatch(ctx, feedIDs[i:end])
 		if err != nil {
-			return nil, fmt.Errorf("batch chunk %d-%d: %w", i, end, err)
+			slog.Warn("chunk fetch failed", "chunk", chunkNum, "total_chunks", totalChunks, "error", err)
+			continue
 		}
 		all = append(all, chunk...)
+		slog.Debug("chunk fetched", "chunk", chunkNum, "total_chunks", totalChunks, "prices_so_far", len(all))
 	}
 
 	return all, nil
