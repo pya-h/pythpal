@@ -148,13 +148,13 @@
 
 ## Phase 13: Integration Tests
 
-- [ ] End-to-end test: start server (with mock pyth), verify:
+- [x] End-to-end test: start server (with mock pyth), verify:
   - `/health` returns 200
   - After one fetch cycle, `/prices` returns data
   - `/prices/{token}` returns correct price
   - `/prices/{token}/history` accumulates entries
   - `/events` SSE stream receives updates
-- [ ] Race condition test: run full server with `-race` flag under load
+- [x] Race condition test: run full server with `-race` flag under load
 
 ## Phase 14: Polish
 
