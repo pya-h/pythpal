@@ -9,6 +9,11 @@ import (
 	"time"
 )
 
+// PriceFetcher is the interface used by the fetcher to get prices.
+type PriceFetcher interface {
+	FetchLatestPrice(ctx context.Context, feedID string) (*ParsedPriceFeed, error)
+}
+
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
