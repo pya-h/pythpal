@@ -3,6 +3,7 @@ package pyth
 import (
 	"math"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/p4ya/umbra/pricefeed/internal/store"
@@ -23,6 +24,32 @@ type PriceData struct {
 	Conf        string `json:"conf"`
 	Expo        int    `json:"expo"`
 	PublishTime int64  `json:"publish_time"`
+}
+
+// PriceFeedInfo represents a single feed entry from /v2/price_feeds.
+type PriceFeedInfo struct {
+	ID         string         `json:"id"`
+	Attributes PriceFeedAttrs `json:"attributes"`
+}
+
+type PriceFeedAttrs struct {
+	AssetType     string `json:"asset_type"`
+	Base          string `json:"base"`
+	QuoteCurrency string `json:"quote_currency"`
+	Symbol        string `json:"symbol"`
+}
+
+// NormalizeName returns a clean, URL-safe token ID.
+// e.g. "Crypto.BTC/USD" -> "BTC-USD", using attributes when available.
+func (f *PriceFeedInfo) NormalizeName() string {
+	if f.Attributes.Base != "" && f.Attributes.QuoteCurrency != "" {
+		return f.Attributes.Base + "-" + f.Attributes.QuoteCurrency
+	}
+	s := f.Attributes.Symbol
+	if idx := strings.Index(s, "."); idx != -1 {
+		s = s[idx+1:]
+	}
+	return strings.ReplaceAll(s, "/", "-")
 }
 
 // NormalizePrice converts a raw price string and exponent to a float64.

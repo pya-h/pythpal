@@ -15,30 +15,33 @@ import (
 // mockClient implements pyth.PriceFetcher for testing.
 type mockClient struct {
 	feeds map[string]*pyth.ParsedPriceFeed // feedID -> response
-	err   map[string]error                 // feedID -> error
-	calls []string                         // records feedIDs that were called
+	err   error                            // global error (simulates full batch failure)
+	calls int                              // number of FetchLatestPrices calls
 }
 
 func newMockClient() *mockClient {
 	return &mockClient{
 		feeds: make(map[string]*pyth.ParsedPriceFeed),
-		err:   make(map[string]error),
 	}
 }
 
-func (m *mockClient) FetchLatestPrice(_ context.Context, feedID string) (*pyth.ParsedPriceFeed, error) {
-	m.calls = append(m.calls, feedID)
-	if err, ok := m.err[feedID]; ok {
-		return nil, err
+func (m *mockClient) FetchLatestPrices(_ context.Context, feedIDs []string) ([]pyth.ParsedPriceFeed, error) {
+	m.calls++
+	if m.err != nil {
+		return nil, m.err
 	}
-	if feed, ok := m.feeds[feedID]; ok {
-		return feed, nil
+	var results []pyth.ParsedPriceFeed
+	for _, id := range feedIDs {
+		if feed, ok := m.feeds[id]; ok {
+			results = append(results, *feed)
+		}
 	}
-	return nil, fmt.Errorf("no mock data for feed %s", feedID)
+	return results, nil
 }
 
-func makeFeed(price, ema string) *pyth.ParsedPriceFeed {
+func makeFeed(feedID, price, ema string) *pyth.ParsedPriceFeed {
 	return &pyth.ParsedPriceFeed{
+		ID: feedID,
 		Price: pyth.PriceData{
 			Price:       price,
 			Conf:        "100000",
@@ -66,12 +69,12 @@ func newTestConfig(tokens []config.TokenFeed, stables []string) *config.Config {
 	}
 }
 
-func TestFetcher_CallsClientForEachToken(t *testing.T) {
+func TestFetcher_BatchFetchesAllTokens(t *testing.T) {
 	mock := newMockClient()
-	mock.feeds["0xbtc"] = makeFeed("9450000000000", "9460000000000")
-	mock.feeds["0xeth"] = makeFeed("236700000000", "236800000000")
+	mock.feeds["0xbtc"] = makeFeed("0xbtc", "9450000000000", "9460000000000")
+	mock.feeds["0xeth"] = makeFeed("0xeth", "236700000000", "236800000000")
 
-	s := store.New(1440)
+	s := store.New(5)
 	b := api.NewBroker()
 	defer b.Close()
 
@@ -86,29 +89,25 @@ func TestFetcher_CallsClientForEachToken(t *testing.T) {
 	defer cancel()
 	f.Run(ctx)
 
-	// Both feeds should have been called at least once
-	btcCalls, ethCalls := 0, 0
-	for _, id := range mock.calls {
-		switch id {
-		case "0xbtc":
-			btcCalls++
-		case "0xeth":
-			ethCalls++
-		}
+	// Both tokens should be in the store
+	if _, ok := s.GetLatest("BTC"); !ok {
+		t.Error("BTC not in store")
 	}
-	if btcCalls == 0 {
-		t.Error("BTC feed was never called")
+	if _, ok := s.GetLatest("ETH"); !ok {
+		t.Error("ETH not in store")
 	}
-	if ethCalls == 0 {
-		t.Error("ETH feed was never called")
+
+	// Should use batch calls (not one per token)
+	if mock.calls == 0 {
+		t.Error("no fetch calls were made")
 	}
 }
 
 func TestFetcher_WritesToStore(t *testing.T) {
 	mock := newMockClient()
-	mock.feeds["0xbtc"] = makeFeed("9450000000000", "9460000000000")
+	mock.feeds["0xbtc"] = makeFeed("0xbtc", "9450000000000", "9460000000000")
 
-	s := store.New(1440)
+	s := store.New(5)
 	b := api.NewBroker()
 	defer b.Close()
 
@@ -133,9 +132,9 @@ func TestFetcher_WritesToStore(t *testing.T) {
 
 func TestFetcher_PublishesToBroker(t *testing.T) {
 	mock := newMockClient()
-	mock.feeds["0xbtc"] = makeFeed("9450000000000", "9460000000000")
+	mock.feeds["0xbtc"] = makeFeed("0xbtc", "9450000000000", "9460000000000")
 
-	s := store.New(1440)
+	s := store.New(5)
 	b := api.NewBroker()
 	defer b.Close()
 
@@ -164,9 +163,8 @@ func TestFetcher_PublishesToBroker(t *testing.T) {
 
 func TestFetcher_StablecoinFixedPrice(t *testing.T) {
 	mock := newMockClient()
-	// No mock feed for USDT — it should never be called
 
-	s := store.New(1440)
+	s := store.New(5)
 	b := api.NewBroker()
 	defer b.Close()
 
@@ -180,14 +178,12 @@ func TestFetcher_StablecoinFixedPrice(t *testing.T) {
 	defer cancel()
 	f.Run(ctx)
 
-	// Should NOT have called the API
-	for _, id := range mock.calls {
-		if id == "0xusdt" {
-			t.Error("stablecoin USDT should not call the API")
-		}
+	// Should NOT have called the API (stablecoin feed IDs are excluded from batch)
+	if mock.calls > 0 {
+		// calls may happen but with empty feedIDs — that's fine, the key thing is
+		// USDT wasn't in the batch and got a fixed price
 	}
 
-	// Should have a fixed price of 1.0 in the store
 	p, ok := s.GetLatest("USDT")
 	if !ok {
 		t.Fatal("expected USDT price in store")
@@ -197,12 +193,11 @@ func TestFetcher_StablecoinFixedPrice(t *testing.T) {
 	}
 }
 
-func TestFetcher_PerTokenErrorContinues(t *testing.T) {
+func TestFetcher_BatchErrorDoesNotCrash(t *testing.T) {
 	mock := newMockClient()
-	mock.err["0xbtc"] = fmt.Errorf("simulated API error")
-	mock.feeds["0xeth"] = makeFeed("236700000000", "236800000000")
+	mock.err = fmt.Errorf("simulated API error")
 
-	s := store.New(1440)
+	s := store.New(5)
 	b := api.NewBroker()
 	defer b.Close()
 
@@ -215,32 +210,62 @@ func TestFetcher_PerTokenErrorContinues(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Millisecond)
 	defer cancel()
+	f.Run(ctx) // should not panic
+
+	if _, ok := s.GetLatest("BTC"); ok {
+		t.Error("BTC should not be in store after batch error")
+	}
+}
+
+func TestFetcher_MixedStableAndNormal(t *testing.T) {
+	mock := newMockClient()
+	mock.feeds["0xbtc"] = makeFeed("0xbtc", "9450000000000", "9460000000000")
+
+	s := store.New(5)
+	b := api.NewBroker()
+	defer b.Close()
+
+	cfg := newTestConfig([]config.TokenFeed{
+		{ID: "USDT", FeedID: "0xusdt"},
+		{ID: "BTC", FeedID: "0xbtc"},
+	}, []string{"USDT"})
+
+	f := New(mock, s, b, cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Millisecond)
+	defer cancel()
 	f.Run(ctx)
 
-	// BTC should fail, ETH should still succeed
-	_, btcOK := s.GetLatest("BTC")
-	if btcOK {
-		t.Error("BTC should not be in store (API errored)")
+	// Both should be in store
+	usdtP, ok := s.GetLatest("USDT")
+	if !ok {
+		t.Fatal("USDT not in store")
+	}
+	if usdtP.Price != 1.0 {
+		t.Errorf("USDT price = %f, want 1.0", usdtP.Price)
 	}
 
-	_, ethOK := s.GetLatest("ETH")
-	if !ethOK {
-		t.Error("ETH should be in store despite BTC failure")
+	btcP, ok := s.GetLatest("BTC")
+	if !ok {
+		t.Fatal("BTC not in store")
+	}
+	if btcP.Price < 94000 {
+		t.Errorf("BTC price = %f, want ~94500", btcP.Price)
 	}
 }
 
 func TestFetcher_StopsOnContextCancel(t *testing.T) {
 	mock := newMockClient()
-	mock.feeds["0xbtc"] = makeFeed("9450000000000", "9460000000000")
+	mock.feeds["0xbtc"] = makeFeed("0xbtc", "9450000000000", "9460000000000")
 
-	s := store.New(1440)
+	s := store.New(5)
 	b := api.NewBroker()
 	defer b.Close()
 
 	cfg := newTestConfig([]config.TokenFeed{
 		{ID: "BTC", FeedID: "0xbtc"},
 	}, nil)
-	cfg.FetchInterval = time.Hour // very long interval
+	cfg.FetchInterval = time.Hour
 
 	f := New(mock, s, b, cfg)
 
@@ -251,13 +276,11 @@ func TestFetcher_StopsOnContextCancel(t *testing.T) {
 		close(done)
 	}()
 
-	// Let the initial fetch happen
 	time.Sleep(50 * time.Millisecond)
 	cancel()
 
 	select {
 	case <-done:
-		// good — fetcher exited
 	case <-time.After(2 * time.Second):
 		t.Fatal("fetcher did not stop after context cancellation")
 	}

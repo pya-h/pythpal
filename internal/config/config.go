@@ -34,7 +34,7 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid FETCH_INTERVAL_SECONDS: %w", err)
 	}
 
-	historyCap, err := getEnvInt("HISTORY_CAP_MINUTES", 1440)
+	historyCap, err := getEnvInt("HISTORY_CAP_MINUTES", 5)
 	if err != nil {
 		return nil, fmt.Errorf("invalid HISTORY_CAP_MINUTES: %w", err)
 	}

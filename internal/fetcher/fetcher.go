@@ -38,7 +38,6 @@ func New(
 
 // Run starts the fetch loop. It blocks until ctx is cancelled.
 func (f *Fetcher) Run(ctx context.Context) {
-	// Fetch immediately on start, then on every tick.
 	f.fetchAll(ctx)
 
 	ticker := time.NewTicker(f.interval)
@@ -56,48 +55,67 @@ func (f *Fetcher) Run(ctx context.Context) {
 }
 
 func (f *Fetcher) fetchAll(ctx context.Context) {
+	// Handle stablecoins (no API call needed)
+	now := time.Now()
 	for _, token := range f.tokens {
-		if ctx.Err() != nil {
-			return
-		}
-
-		p, err := f.fetchOne(ctx, token)
-		if err != nil {
-			slog.Error("fetch failed",
-				"token", token.ID,
-				"error", err,
-			)
+		if !f.stableCoins[token.ID] {
 			continue
 		}
-
-		f.store.SetLatest(token.ID, p)
-		f.broker.Publish(p)
-
-		slog.Debug("price updated",
-			"token", token.ID,
-			"price", p.Price,
-			"ema", p.EMAPrice,
-		)
-	}
-}
-
-func (f *Fetcher) fetchOne(ctx context.Context, token config.TokenFeed) (store.Price, error) {
-	now := time.Now()
-
-	if f.stableCoins[token.ID] {
-		return store.Price{
+		p := store.Price{
 			TokenID:   token.ID,
 			Price:     1.0,
 			EMAPrice:  1.0,
 			Conf:      0.0,
 			Timestamp: now,
-		}, nil
+		}
+		f.store.SetLatest(token.ID, p)
+		f.broker.Publish(p)
 	}
 
-	feed, err := f.client.FetchLatestPrice(ctx, token.FeedID)
+	// Collect non-stablecoin feed IDs for batch fetch
+	var feedIDs []string
+	feedToToken := make(map[string]string) // feedID -> tokenID
+	for _, token := range f.tokens {
+		if f.stableCoins[token.ID] {
+			continue
+		}
+		feedIDs = append(feedIDs, token.FeedID)
+		feedToToken[token.FeedID] = token.ID
+	}
+
+	if len(feedIDs) == 0 {
+		return
+	}
+
+	if ctx.Err() != nil {
+		return
+	}
+
+	results, err := f.client.FetchLatestPrices(ctx, feedIDs)
 	if err != nil {
-		return store.Price{}, err
+		slog.Error("batch fetch failed", "error", err)
+		return
 	}
 
-	return feed.ToStorePrice(token.ID)
+	for _, feed := range results {
+		tokenID, ok := feedToToken[feed.ID]
+		if !ok {
+			continue
+		}
+
+		p, err := feed.ToStorePrice(tokenID)
+		if err != nil {
+			slog.Error("price conversion failed", "token", tokenID, "error", err)
+			continue
+		}
+
+		f.store.SetLatest(tokenID, p)
+		f.broker.Publish(p)
+
+		slog.Debug("price updated",
+			"token", tokenID,
+			"price", p.Price,
+			"ema", p.EMAPrice,
+		)
+	}
 }
