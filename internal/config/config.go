@@ -20,7 +20,8 @@ type Config struct {
 	FetchInterval time.Duration
 	ServerPort    int
 	LogLevel      string
-	HistoryCap    int // max minutes of history to keep per token
+	AppEnv        string // "development" or "production"
+	HistoryCap    int    // max minutes of history to keep per token
 	HermesBaseURL string
 }
 
@@ -90,12 +91,26 @@ func Load() (*Config, error) {
 		hermesURL = "https://hermes.pyth.network"
 	}
 
+	appEnv := getEnv("APP_ENV", "development")
+
+	// Derive log level: explicit LOG_LEVEL takes priority, otherwise based on APP_ENV
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		switch appEnv {
+		case "production":
+			logLevel = "warn"
+		default:
+			logLevel = "debug"
+		}
+	}
+
 	return &Config{
 		Tokens:        tokens,
 		StableCoins:   stableCoins,
 		FetchInterval: time.Duration(interval) * time.Second,
 		ServerPort:    port,
-		LogLevel:      getEnv("LOG_LEVEL", "info"),
+		LogLevel:      logLevel,
+		AppEnv:        appEnv,
 		HistoryCap:    historyCap,
 		HermesBaseURL: hermesURL,
 	}, nil

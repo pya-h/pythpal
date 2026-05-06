@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/p4ya/umbra/pricefeed/internal/store"
@@ -31,13 +32,79 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleGetAllPrices(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	tokensParam := q.Get("tokens")
+	skipParam := q.Get("skip")
+	takeParam := q.Get("take")
+
+	hasFilter := tokensParam != ""
+	hasPagination := skipParam != "" || takeParam != ""
+
+	if hasFilter && hasPagination {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "cannot use 'tokens' filter together with pagination ('skip'/'take')",
+		})
+		return
+	}
+
 	all := h.store.GetAllLatest()
 	now := time.Now()
+
+	// Apply tokens filter
+	if hasFilter {
+		ids := strings.Split(tokensParam, ",")
+		prices := make([]store.Price, 0, len(ids))
+		for _, id := range ids {
+			id = strings.TrimSpace(id)
+			if p, ok := all[id]; ok {
+				p.Stale = now.Sub(p.Timestamp) > h.staleThreshold
+				prices = append(prices, p)
+			}
+		}
+		writeJSON(w, http.StatusOK, prices)
+		return
+	}
+
+	// Build full list
 	prices := make([]store.Price, 0, len(all))
 	for _, p := range all {
 		p.Stale = now.Sub(p.Timestamp) > h.staleThreshold
 		prices = append(prices, p)
 	}
+
+	// Apply pagination
+	if hasPagination {
+		skip := 0
+		take := len(prices)
+
+		if skipParam != "" {
+			var err error
+			skip, err = strconv.Atoi(skipParam)
+			if err != nil || skip < 0 {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid 'skip' parameter"})
+				return
+			}
+		}
+		if takeParam != "" {
+			var err error
+			take, err = strconv.Atoi(takeParam)
+			if err != nil || take < 1 {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid 'take' parameter"})
+				return
+			}
+		}
+
+		if skip >= len(prices) {
+			prices = []store.Price{}
+		} else {
+			end := skip + take
+			if end > len(prices) {
+				end = len(prices)
+			}
+			prices = prices[skip:end]
+		}
+	}
+
 	writeJSON(w, http.StatusOK, prices)
 }
 
@@ -83,12 +150,22 @@ func logMiddleware(next http.Handler) http.Handler {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
-		slog.Info("request",
+
+		attrs := []any{
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", rec.status,
 			"duration", time.Since(start).String(),
-		)
+		}
+
+		switch {
+		case rec.status >= 500:
+			slog.Error("request", attrs...)
+		case rec.status >= 400:
+			slog.Warn("request", attrs...)
+		default:
+			slog.Debug("request", attrs...)
+		}
 	})
 }
 
