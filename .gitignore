@@ -1,3 +1,4 @@
 .env
 pricefeed
 *.exe
+server

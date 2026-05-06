@@ -1,5 +1,103 @@
 package main
 
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/p4ya/umbra/pricefeed/internal/api"
+	"github.com/p4ya/umbra/pricefeed/internal/config"
+	"github.com/p4ya/umbra/pricefeed/internal/fetcher"
+	"github.com/p4ya/umbra/pricefeed/internal/pyth"
+	"github.com/p4ya/umbra/pricefeed/internal/store"
+)
+
 func main() {
-	// TODO: wire everything together in Phase 12
+	cfg, err := config.Load()
+	if err != nil {
+		slog.Error("failed to load config", "error", err)
+		os.Exit(1)
+	}
+
+	setupLogger(cfg.LogLevel)
+
+	slog.Info("starting pricefeed",
+		"port", cfg.ServerPort,
+		"tokens", len(cfg.Tokens),
+		"interval", cfg.FetchInterval,
+	)
+
+	priceStore := store.New(cfg.HistoryCap)
+	broker := api.NewBroker()
+	pythClient := pyth.NewClient(cfg.HermesBaseURL)
+
+	// HTTP routes
+	mux := http.NewServeMux()
+	handler := api.NewHandler(priceStore)
+	handler.RegisterRoutes(mux)
+	api.RegisterSSE(mux, broker)
+
+	srv := &http.Server{
+		Addr:         fmt.Sprintf(":%d", cfg.ServerPort),
+		Handler:      mux,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 0, // SSE needs no write timeout
+		IdleTimeout:  120 * time.Second,
+	}
+
+	// Start fetcher
+	fetchCtx, fetchCancel := context.WithCancel(context.Background())
+	defer fetchCancel()
+
+	f := fetcher.New(pythClient, priceStore, broker, cfg)
+	go f.Run(fetchCtx)
+
+	// Start HTTP server
+	go func() {
+		slog.Info("http server listening", "addr", srv.Addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("http server error", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// Graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	sig := <-quit
+	slog.Info("shutdown signal received", "signal", sig)
+
+	fetchCancel()
+	broker.Close()
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		slog.Error("http server shutdown error", "error", err)
+	}
+
+	slog.Info("server stopped")
+}
+
+func setupLogger(level string) {
+	var logLevel slog.Level
+	switch level {
+	case "debug":
+		logLevel = slog.LevelDebug
+	case "warn":
+		logLevel = slog.LevelWarn
+	case "error":
+		logLevel = slog.LevelError
+	default:
+		logLevel = slog.LevelInfo
+	}
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: logLevel,
+	})))
 }

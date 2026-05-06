@@ -134,17 +134,17 @@
 
 ## Phase 12: Main Wiring & Server Startup
 
-- [ ] Wire everything in `cmd/server/main.go`:
+- [x] Wire everything in `cmd/server/main.go`:
   - Load config
   - Create pyth client, store, broker, fetcher
   - Create router with handlers
   - Start fetcher in a goroutine
   - Start HTTP server
-- [ ] Implement graceful shutdown:
+- [x] Implement graceful shutdown:
   - Listen for SIGINT/SIGTERM
   - Cancel fetcher context
   - Call `http.Server.Shutdown` with timeout
-- [ ] Add health check endpoint `GET /health`
+- [x] Add health check endpoint `GET /health`
 
 ## Phase 13: Integration Tests
 
