@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"strconv"
@@ -23,8 +24,41 @@ type Config struct {
 	HermesBaseURL string
 }
 
+// loadEnvFile reads a .env file and sets any variables not already in the environment.
+// Silently skips if the file doesn't exist.
+func loadEnvFile(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, val, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		val = strings.TrimSpace(val)
+		// Don't override existing env vars (explicit env takes precedence)
+		if os.Getenv(key) == "" {
+			os.Setenv(key, val)
+		}
+	}
+	return scanner.Err()
+}
+
 func Load() (*Config, error) {
-	port, err := getEnvInt("SERVER_PORT", 8080)
+	loadEnvFile(".env")
+	port, err := getEnvInt("SERVER_PORT", 3000)
 	if err != nil {
 		return nil, fmt.Errorf("invalid SERVER_PORT: %w", err)
 	}

@@ -1,62 +1,82 @@
 # Pyth Price Feed Service
 
-A lightweight Go server that fetches cryptocurrency prices from the [Pyth Network](https://pyth.network/) Hermes API, stores them in-memory, and serves them via REST and SSE endpoints.
+A lightweight Go server that fetches cryptocurrency prices from the [Pyth Network](https://pyth.network/) Hermes API, stores them in-memory, and serves them via REST and SSE endpoints. Built for services and bots that need fast, low-latency access to current crypto prices without querying Pyth directly.
+
+## How It Works
+
+The server runs a background loop that batch-fetches prices from the Pyth Hermes oracle every N seconds. Prices are stored in-memory (no database) and served over HTTP. Bots and services can either poll the REST API or subscribe to real-time price updates via SSE.
+
+```
+Pyth Hermes API
+      |
+      v
+  [Fetcher]  -- every 60s, batch-fetches all feeds -->  [In-Memory Store]
+      |                                                       |
+      v                                                       v
+  [SSE Broker]  -- pushes to subscribers              [REST API]  -- serves on demand
+      |                                                       |
+      v                                                       v
+  GET /events (real-time stream)                  GET /prices, /prices/{token}
+```
 
 ## Features
 
-- Batch-fetches prices from Pyth Hermes API on a configurable interval
-- Auto-discovers all Pyth feeds when no token list is configured
-- In-memory store with configurable history retention
-- REST API for latest prices and short history
-- SSE streaming for real-time price updates (with optional token filter)
-- Stablecoin support (fixed price, no API call)
-- Graceful shutdown
+- **Auto-discovery**: if no token list is configured, discovers all available Pyth feeds automatically
+- **Batch fetching**: fetches all prices in a single HTTP call per tick (chunked at 100 feeds)
+- **In-memory store**: keeps the last 5 minutes of prices per token (configurable)
+- **REST API**: latest prices, single token lookup, short history
+- **SSE streaming**: real-time push with optional token filter -- ideal for bots
+- **Stablecoin handling**: stablecoins get a fixed price of 1.00, no API call
+- **Graceful shutdown**: SIGINT/SIGTERM handling with clean resource cleanup
+- **Zero dependencies**: built entirely on Go's standard library
 
 ## Quick Start
 
 ```bash
-# Build
 make build
-
-# Run with auto-discovered feeds
 ./pricefeed
+```
 
-# Run with specific tokens
-TOKENS=BTC:0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43,ETH:0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace ./pricefeed
+Or with specific tokens:
+
+```bash
+export TOKENS=BTC:0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43,ETH:0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace
+export STABLE_COINS=USDT,USDC
+./pricefeed
 ```
 
 ## Configuration
 
-All configuration is via environment variables. See [.env.example](.env.example) for reference.
+All via environment variables. See [.env.example](.env.example).
 
 | Variable | Default | Description |
 |---|---|---|
-| `TOKENS` | *(auto-discover)* | Token list as `ID:pyth_feed_id` pairs, comma-separated. If omitted, all Pyth feeds are fetched. |
-| `STABLE_COINS` | *(none)* | Comma-separated token IDs to treat as stablecoins (fixed price 1.00). |
-| `FETCH_INTERVAL_SECONDS` | `60` | Seconds between price fetch cycles. |
-| `SERVER_PORT` | `8080` | HTTP server port. |
-| `LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warn`, `error`. |
-| `HISTORY_CAP_MINUTES` | `5` | Minutes of price history to retain per token. |
+| `TOKENS` | *(auto-discover)* | `ID:pyth_feed_id` pairs, comma-separated. Omit to fetch all Pyth feeds. |
+| `STABLE_COINS` | *(none)* | Token IDs to treat as stablecoins (fixed price 1.00). |
+| `FETCH_INTERVAL_SECONDS` | `60` | Seconds between fetch cycles. |
+| `SERVER_PORT` | `3000` | HTTP server port. |
+| `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
+| `HISTORY_CAP_MINUTES` | `5` | Minutes of price history to keep per token. |
 | `HERMES_BASE_URL` | `https://hermes.pyth.network` | Pyth Hermes API base URL. |
 
-## API Endpoints
+## API
 
 ### `GET /health`
-Health check. Returns `{"status": "ok"}`.
+Returns `{"status": "ok"}`.
 
 ### `GET /prices`
-Returns the latest price for every tracked token.
+All latest prices as a JSON array.
 
 ### `GET /prices/{token}`
-Returns the latest price for a specific token. Returns 404 if not found.
+Latest price for a single token. 404 if not found.
 
 ### `GET /prices/{token}/history?limit=N`
-Returns the last N price entries for a token (default limit: 60).
+Last N price entries for a token (default: 60, most recent last).
 
 ### `GET /events`
-SSE stream of real-time price updates. Each event is a JSON-encoded price object.
+SSE stream of price updates. Each event is a `data:` line with a JSON price object.
 
-Filter by token: `GET /events?tokens=BTC,ETH`
+Filter: `GET /events?tokens=BTC,ETH`
 
 ### Price Object
 
@@ -70,11 +90,22 @@ Filter by token: `GET /events?tokens=BTC,ETH`
 }
 ```
 
+| Field | Description |
+|---|---|
+| `token_id` | Token identifier (e.g. `BTC`, or `BTC-USD` if auto-discovered) |
+| `price` | Current spot price (normalized from Pyth's raw integer + exponent) |
+| `ema_price` | Exponential moving average price |
+| `confidence` | Price confidence interval |
+| `timestamp` | Pyth publish time |
+
 ## Development
 
 ```bash
-make test       # Run tests
-make test-race  # Run tests with race detector
-make build      # Build binary
-make run        # Build and run
+make test       # run tests
+make test-race  # run tests with race detector
+make build      # build binary
+make run        # build and run
+make clean      # remove binary
 ```
+
+See [DEVELOPER.md](DEVELOPER.md) for architecture and code walkthrough.

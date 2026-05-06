@@ -1,0 +1,25 @@
+@host=http://localhost:3001
+
+### Health Check
+GET {{host}}/health
+
+### Get All Prices
+GET {{host}}/prices
+
+### Get Single Token Price
+GET {{host}}/prices/BTC
+
+### Get Single Token Price (not found)
+GET {{host}}/prices/DOGE
+
+### Get Price History (default limit)
+GET {{host}}/prices/BTC/history
+
+### Get Price History (custom limit)
+GET {{host}}/prices/BTC/history?limit=5
+
+### SSE Stream (all tokens)
+GET {{host}}/events
+
+### SSE Stream (filtered)
+GET {{host}}/events?tokens=BTC,ETH

@@ -1,0 +1,7 @@
+.git
+.env
+pricefeed
+server
+*.exe
+specs
+TASKS.md

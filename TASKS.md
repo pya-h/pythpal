@@ -100,7 +100,7 @@
   - `Broker` struct manages subscriber channels
   - `Subscribe() (<-chan Price, unsubscribe func)`
   - `Publish(Price)` — fans out to all subscribers
-- [ ] Wire broker: fetcher publishes to broker, SSE handler subscribes on connection
+- [x] Wire broker: fetcher publishes to broker, SSE handler subscribes on connection
 - [x] Handle client disconnect (context cancellation), clean up subscriber
 
 ## Phase 9: Tests — SSE
