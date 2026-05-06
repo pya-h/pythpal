@@ -158,8 +158,8 @@
 
 ## Phase 14: Polish
 
-- [ ] Add `README.md` with setup instructions, endpoints, config reference
-- [ ] Add `Makefile` or `Justfile` (build, test, run, lint)
-- [ ] Add `.gitignore`
-- [ ] Review error handling and edge cases
-- [ ] Ensure all log output is structured and useful
+- [x] Add `README.md` with setup instructions, endpoints, config reference
+- [x] Add `Makefile` (build, test, test-race, run, clean)
+- [x] Add `.gitignore`
+- [x] Review error handling and edge cases
+- [x] Ensure all log output is structured and useful

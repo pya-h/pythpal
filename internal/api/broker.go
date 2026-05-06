@@ -41,9 +41,11 @@ func (b *Broker) Subscribe(tokens []string) (<-chan store.Price, func()) {
 
 	unsubscribe := func() {
 		b.mu.Lock()
-		delete(b.subscribers, sub)
-		close(sub.ch)
-		b.mu.Unlock()
+		defer b.mu.Unlock()
+		if _, ok := b.subscribers[sub]; ok {
+			delete(b.subscribers, sub)
+			close(sub.ch)
+		}
 	}
 
 	return sub.ch, unsubscribe

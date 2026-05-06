@@ -26,12 +26,6 @@ func main() {
 
 	setupLogger(cfg.LogLevel)
 
-	slog.Info("starting pricefeed",
-		"port", cfg.ServerPort,
-		"tokens", len(cfg.Tokens),
-		"interval", cfg.FetchInterval,
-	)
-
 	priceStore := store.New(cfg.HistoryCap)
 	broker := api.NewBroker()
 	pythClient := pyth.NewClient(cfg.HermesBaseURL)
@@ -52,6 +46,12 @@ func main() {
 		}
 		slog.Info("discovered feeds", "count", len(cfg.Tokens))
 	}
+
+	slog.Info("starting pricefeed",
+		"port", cfg.ServerPort,
+		"tokens", len(cfg.Tokens),
+		"interval", cfg.FetchInterval,
+	)
 
 	// HTTP routes
 	mux := http.NewServeMux()
