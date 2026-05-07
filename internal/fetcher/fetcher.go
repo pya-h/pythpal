@@ -2,6 +2,7 @@ package fetcher
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -43,20 +44,28 @@ func (f *Fetcher) Run(ctx context.Context) {
 	const maxRetries = 3
 	const retryDelay = 3 * time.Second
 
+	marketCount := 0
+	for _, t := range f.tokens {
+		if !f.stableCoins[t.ID] {
+			marketCount++
+		}
+	}
+
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		if ctx.Err() != nil {
+		if err := ctx.Err(); err != nil {
+			slog.Info("startup fetch aborted", "error", err)
 			return
 		}
 		if attempt > 1 {
 			slog.Info("retrying initial price fetch", "attempt", attempt)
 			time.Sleep(retryDelay)
 		}
-		n := f.fetchAll(ctx)
+		n, fetchErr := f.fetchAll(ctx)
 		if n > 0 {
 			slog.Info("initial price fetch complete", "prices", n)
 			break
 		}
-		slog.Warn("initial fetch returned no prices", "attempt", attempt)
+		slog.Warn("initial fetch returned no prices", "attempt", attempt, "market_tokens", marketCount, "error", fetchErr)
 	}
 
 	ticker := time.NewTicker(f.interval)
@@ -89,23 +98,26 @@ func (f *Fetcher) fetchWithRetry(ctx context.Context) {
 		}
 	}
 
+	var lastErr error
 	for attempt := 1; attempt <= maxRetries+1; attempt++ {
-		if ctx.Err() != nil {
+		if err := ctx.Err(); err != nil {
+			slog.Info("fetch cycle aborted", "error", err)
 			return
 		}
 		if attempt > 1 {
-			slog.Warn("fetch cycle got no market prices, retrying", "attempt", attempt)
+			slog.Warn("fetch cycle got no market prices, retrying", "attempt", attempt, "market_tokens", marketCount, "error", lastErr)
 			time.Sleep(retryDelay)
 		}
-		n := f.fetchAll(ctx)
+		n, err := f.fetchAll(ctx)
+		lastErr = err
 		if n > stableCount || marketCount == 0 {
 			return
 		}
 	}
-	slog.Error("fetch cycle failed after retries, will try again next interval")
+	slog.Error("fetch cycle failed after retries, will try again next interval", "market_tokens", marketCount, "error", lastErr)
 }
 
-func (f *Fetcher) fetchAll(ctx context.Context) int {
+func (f *Fetcher) fetchAll(ctx context.Context) (int, error) {
 	stored := 0
 
 	// Handle stablecoins (no API call needed)
@@ -137,17 +149,19 @@ func (f *Fetcher) fetchAll(ctx context.Context) int {
 	}
 
 	if len(feedIDs) == 0 {
-		return stored
+		return stored, nil
 	}
 
 	if ctx.Err() != nil {
-		return stored
+		return stored, ctx.Err()
 	}
 
 	results, err := f.client.FetchLatestPrices(ctx, feedIDs)
 	if err != nil {
-		slog.Error("batch fetch failed", "error", err)
-		return stored
+		return stored, fmt.Errorf("fetching prices: %w", err)
+	}
+	if len(results) == 0 {
+		return stored, fmt.Errorf("API returned no prices for %d feeds", len(feedIDs))
 	}
 
 	for _, feed := range results {
@@ -173,5 +187,5 @@ func (f *Fetcher) fetchAll(ctx context.Context) int {
 		)
 	}
 
-	return stored
+	return stored, nil
 }

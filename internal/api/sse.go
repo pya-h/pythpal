@@ -46,7 +46,7 @@ func RegisterSSE(mux *http.ServeMux, broker *Broker) {
 				}
 				data, err := json.Marshal(price)
 				if err != nil {
-					slog.Error("sse marshal error", "error", err)
+					slog.Error("sse marshal error", "token", price.TokenID, "error", err)
 					continue
 				}
 				fmt.Fprintf(w, "data: %s\n\n", data)
