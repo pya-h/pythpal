@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/p4ya/umbra/priceservice/internal/api"
-	"github.com/p4ya/umbra/priceservice/internal/config"
-	"github.com/p4ya/umbra/priceservice/internal/pyth"
-	"github.com/p4ya/umbra/priceservice/internal/store"
+	"github.com/pya-h/pythpal/internal/api"
+	"github.com/pya-h/pythpal/internal/config"
+	"github.com/pya-h/pythpal/internal/pyth"
+	"github.com/pya-h/pythpal/internal/store"
 )
 
 // mockClient implements pyth.PriceFetcher for testing.

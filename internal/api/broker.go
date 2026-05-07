@@ -3,7 +3,7 @@ package api
 import (
 	"sync"
 
-	"github.com/p4ya/umbra/priceservice/internal/store"
+	"github.com/pya-h/pythpal/internal/store"
 )
 
 type Broker struct {

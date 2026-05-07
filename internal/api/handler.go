@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/p4ya/umbra/priceservice/internal/store"
+	"github.com/pya-h/pythpal/internal/store"
 )
 
 type Handler struct {
