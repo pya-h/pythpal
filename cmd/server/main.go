@@ -26,6 +26,25 @@ func main() {
 
 	setupLogger(cfg.LogLevel)
 
+	tokenIDs := make([]string, len(cfg.Tokens))
+	for i, t := range cfg.Tokens {
+		tokenIDs[i] = t.ID
+	}
+	stables := make([]string, 0, len(cfg.StableCoins))
+	for id := range cfg.StableCoins {
+		stables = append(stables, id)
+	}
+	slog.Warn("config loaded",
+		"port", cfg.ServerPort,
+		"app_env", cfg.AppEnv,
+		"log_level", cfg.LogLevel,
+		"fetch_interval", cfg.FetchInterval,
+		"history_cap_minutes", cfg.HistoryCap,
+		"hermes_url", cfg.HermesBaseURL,
+		"tokens", tokenIDs,
+		"stable_coins", stables,
+	)
+
 	priceStore := store.New(cfg.HistoryCap)
 	broker := api.NewBroker()
 	pythClient := pyth.NewClient(cfg.HermesBaseURL)
