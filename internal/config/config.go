@@ -74,9 +74,9 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid HISTORY_CAP_MINUTES: %w", err)
 	}
 
-	tokens, err := parseTokens(os.Getenv("TOKENS"))
+	tokens, err := parseTokens(os.Getenv("DESIRED_TOKENS"))
 	if err != nil {
-		return nil, fmt.Errorf("invalid TOKENS: %w", err)
+		return nil, fmt.Errorf("invalid DESIRED_TOKENS: %w", err)
 	}
 
 	stableCoins := make(map[string]bool)

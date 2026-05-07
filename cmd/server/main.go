@@ -49,9 +49,9 @@ func main() {
 	broker := api.NewBroker()
 	pythClient := pyth.NewClient(cfg.HermesBaseURL)
 
-	// Auto-discover feeds from Pyth if TOKENS not configured
+	// Auto-discover feeds from Pyth if DESIRED_TOKENS not configured
 	if len(cfg.Tokens) == 0 {
-		slog.Info("no TOKENS configured, discovering feeds from Pyth...")
+		slog.Info("no DESIRED_TOKENS configured, discovering feeds from Pyth...")
 		feeds, err := pythClient.ListPriceFeeds(context.Background())
 		if err != nil {
 			slog.Error("failed to discover feeds from Pyth", "error", err)

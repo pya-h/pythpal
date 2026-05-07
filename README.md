@@ -40,7 +40,7 @@ make build
 Or with specific tokens:
 
 ```bash
-export TOKENS=BTC:0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43,ETH:0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace
+export DESIRED_TOKENS=BTC:0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43,ETH:0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace
 export STABLE_COINS=USDT,USDC
 ./priceservice
 ```
@@ -52,7 +52,7 @@ All via environment variables. See [.env.example](.env.example).
 | Variable | Default | Description |
 |---|---|---|
 | `APP_ENV` | `development` | `development` (debug logs) or `production` (warn+ only). |
-| `TOKENS` | *(auto-discover)* | `ID:pyth_feed_id` pairs, comma-separated. Omit to fetch all Pyth feeds. |
+| `DESIRED_TOKENS` | *(auto-discover)* | `ID:pyth_feed_id` pairs, comma-separated. Omit to fetch all Pyth feeds. |
 | `STABLE_COINS` | *(none)* | Token IDs to treat as stablecoins (fixed price 1.00). |
 | `FETCH_INTERVAL_SECONDS` | `60` | Seconds between fetch cycles. |
 | `SERVER_PORT` | `3000` | HTTP server port. |
