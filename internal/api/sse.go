@@ -8,8 +8,7 @@ import (
 	"strings"
 )
 
-// RegisterSSE registers the SSE endpoint on the mux.
-// Separated from Handler because SSE depends on the Broker, not just the Store.
+// RegisterSSE registers the SSE endpoint. Separate from Handler because it depends on the Broker.
 func RegisterSSE(mux *http.ServeMux, broker *Broker) {
 	mux.Handle("GET /events", logMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		flusher, ok := w.(http.Flusher)

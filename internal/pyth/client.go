@@ -15,11 +15,6 @@ type PriceFetcher interface {
 	FetchLatestPrices(ctx context.Context, feedIDs []string) ([]ParsedPriceFeed, error)
 }
 
-// FeedDiscoverer is the interface for discovering available Pyth feeds.
-type FeedDiscoverer interface {
-	ListPriceFeeds(ctx context.Context) ([]PriceFeedInfo, error)
-}
-
 type Client struct {
 	baseURL    string
 	httpClient *http.Client

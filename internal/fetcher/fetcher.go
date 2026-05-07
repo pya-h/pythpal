@@ -36,11 +36,6 @@ func New(
 	}
 }
 
-// FetchOnce runs a single fetch cycle. Used for initial data population.
-func (f *Fetcher) FetchOnce(ctx context.Context) {
-	f.fetchAll(ctx)
-}
-
 // Run starts the fetch loop. It blocks until ctx is cancelled.
 // Retries the initial fetch up to 3 times to ensure data is available on startup,
 // then continues on a regular ticker interval.
@@ -84,11 +79,13 @@ func (f *Fetcher) fetchWithRetry(ctx context.Context) {
 	const maxRetries = 2
 	const retryDelay = 5 * time.Second
 
-	// Count how many non-stablecoin tokens we expect
-	expectedFeeds := 0
+	stableCount := 0
+	marketCount := 0
 	for _, token := range f.tokens {
-		if !f.stableCoins[token.ID] {
-			expectedFeeds++
+		if f.stableCoins[token.ID] {
+			stableCount++
+		} else {
+			marketCount++
 		}
 	}
 
@@ -101,9 +98,7 @@ func (f *Fetcher) fetchWithRetry(ctx context.Context) {
 			time.Sleep(retryDelay)
 		}
 		n := f.fetchAll(ctx)
-		// Success if we got at least some non-stablecoin prices,
-		// or if there are no non-stablecoin feeds configured
-		if n > len(f.stableCoins) || expectedFeeds == 0 {
+		if n > stableCount || marketCount == 0 {
 			return
 		}
 	}
@@ -131,7 +126,6 @@ func (f *Fetcher) fetchAll(ctx context.Context) int {
 		stored++
 	}
 
-	// Collect non-stablecoin feed IDs for batch fetch
 	var feedIDs []string
 	feedToToken := make(map[string]string) // feedID -> tokenID
 	for _, token := range f.tokens {
