@@ -1,6 +1,6 @@
 .git
 .env
-pricefeed
+priceservice
 server
 *.exe
 specs

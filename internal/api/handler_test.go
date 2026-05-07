@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/p4ya/umbra/pricefeed/internal/store"
+	"github.com/p4ya/umbra/priceservice/internal/store"
 )
 
 func newTestHandler() (*Handler, *store.Store) {

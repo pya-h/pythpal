@@ -1,4 +1,4 @@
-package pricefeed_test
+package priceservice_test
 
 import (
 	"bufio"
@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/p4ya/umbra/pricefeed/internal/api"
-	"github.com/p4ya/umbra/pricefeed/internal/config"
-	"github.com/p4ya/umbra/pricefeed/internal/fetcher"
-	"github.com/p4ya/umbra/pricefeed/internal/pyth"
-	"github.com/p4ya/umbra/pricefeed/internal/store"
+	"github.com/p4ya/umbra/priceservice/internal/api"
+	"github.com/p4ya/umbra/priceservice/internal/config"
+	"github.com/p4ya/umbra/priceservice/internal/fetcher"
+	"github.com/p4ya/umbra/priceservice/internal/pyth"
+	"github.com/p4ya/umbra/priceservice/internal/store"
 )
 
 // mockHermes returns a test HTTP server that mimics the Pyth Hermes API.

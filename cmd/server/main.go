@@ -10,11 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/p4ya/umbra/pricefeed/internal/api"
-	"github.com/p4ya/umbra/pricefeed/internal/config"
-	"github.com/p4ya/umbra/pricefeed/internal/fetcher"
-	"github.com/p4ya/umbra/pricefeed/internal/pyth"
-	"github.com/p4ya/umbra/pricefeed/internal/store"
+	"github.com/p4ya/umbra/priceservice/internal/api"
+	"github.com/p4ya/umbra/priceservice/internal/config"
+	"github.com/p4ya/umbra/priceservice/internal/fetcher"
+	"github.com/p4ya/umbra/priceservice/internal/pyth"
+	"github.com/p4ya/umbra/priceservice/internal/store"
 )
 
 func main() {
@@ -47,7 +47,7 @@ func main() {
 		slog.Info("discovered feeds", "count", len(cfg.Tokens))
 	}
 
-	slog.Info("starting pricefeed",
+	slog.Info("starting priceservice",
 		"port", cfg.ServerPort,
 		"tokens", len(cfg.Tokens),
 		"interval", cfg.FetchInterval,

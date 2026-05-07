@@ -1,4 +1,4 @@
-BINARY=pricefeed
+BINARY=priceservice
 
 .PHONY: build run test test-race clean
 

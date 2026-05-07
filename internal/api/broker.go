@@ -3,7 +3,7 @@ package api
 import (
 	"sync"
 
-	"github.com/p4ya/umbra/pricefeed/internal/store"
+	"github.com/p4ya/umbra/priceservice/internal/store"
 )
 
 type Broker struct {

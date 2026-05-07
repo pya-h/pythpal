@@ -1,4 +1,4 @@
-# Pyth Price Feed Service
+# Price Service
 
 A lightweight Go server that fetches cryptocurrency prices from the [Pyth Network](https://pyth.network/) Hermes API, stores them in-memory, and serves them via REST and SSE endpoints. Built for services and bots that need fast, low-latency access to current crypto prices without querying Pyth directly.
 
@@ -34,7 +34,7 @@ Pyth Hermes API
 
 ```bash
 make build
-./pricefeed
+./priceservice
 ```
 
 Or with specific tokens:
@@ -42,7 +42,7 @@ Or with specific tokens:
 ```bash
 export TOKENS=BTC:0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43,ETH:0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace
 export STABLE_COINS=USDT,USDC
-./pricefeed
+./priceservice
 ```
 
 ## Configuration
